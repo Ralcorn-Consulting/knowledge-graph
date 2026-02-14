@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Himbot Knowledge Graph</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; color: #fff; }
+#graph { width: 100vw; height: 100vh; }
+svg { width: 100%; height: 100%; }
+
+.tooltip {
+  position: fixed;
+  background: rgba(15, 15, 35, 0.95);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  padding: 16px 20px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  backdrop-filter: blur(20px);
+  max-width: 300px;
+  z-index: 100;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.tooltip.visible { opacity: 1; }
+.tooltip h3 { font-size: 15px; margin-bottom: 6px; }
+.tooltip .type-badge {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.tooltip .stats { font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.6; }
+
+#header {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  z-index: 10;
+}
+#header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+#header p {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  margin-top: 4px;
+}
+
+#legend {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  display: flex;
+  gap: 16px;
+  z-index: 10;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+#stats {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  text-align: right;
+  z-index: 10;
+}
+#stats .num {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+#stats .label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+#stats .stat-row {
+  margin-bottom: 12px;
+}
+
+#search {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+#search input {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 8px 16px;
+  color: #fff;
+  font-size: 13px;
+  width: 240px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+#search input:focus {
+  border-color: rgba(255,255,255,0.3);
+}
+#search input::placeholder { color: rgba(255,255,255,0.25); }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🧠 Himbot Knowledge Graph</h1>
+  <p>76 entities · 427 cross-references · built for Ryan</p>
+</div>
+
+<div id="search">
+  <input type="text" placeholder="Search entities..." id="searchInput">
+</div>
+
+<div id="stats">
+  <div class="stat-row">
+    <div class="num" id="nodeCount">0</div>
+    <div class="label">Entities</div>
+  </div>
+  <div class="stat-row">
+    <div class="num" id="edgeCount">0</div>
+    <div class="label">Connections</div>
+  </div>
+  <div class="stat-row">
+    <div class="num" id="factCount">0</div>
+    <div class="label">Facts</div>
+  </div>
+</div>
+
+<div id="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div>People</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Companies</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Projects</div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <h3 id="ttName"></h3>
+  <div class="type-badge" id="ttBadge"></div>
+  <div class="stats" id="ttStats"></div>
+</div>
+
+<div id="graph">
+  <svg></svg>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+const data = {"nodes":[{"id":"projects/america-makes","type":"projects","slug":"america-makes","factCount":1,"linkedCount":1},{"id":"projects/accelerate-breakfast","type":"projects","slug":"accelerate-breakfast","factCount":6,"linkedCount":5},{"id":"projects/ralco-agent-swarm","type":"projects","slug":"ralco-agent-swarm","factCount":4,"linkedCount":4},{"id":"projects/roi-calculator","type":"projects","slug":"roi-calculator","factCount":7,"linkedCount":7},{"id":"projects/match-capital","type":"projects","slug":"match-capital","factCount":5,"linkedCount":1},{"id":"projects/tax-dollars","type":"projects","slug":"tax-dollars","factCount":6,"linkedCount":2},{"id":"projects/jobsohio","type":"projects","slug":"jobsohio","factCount":4,"linkedCount":2},{"id":"projects/streamy","type":"projects","slug":"streamy","factCount":18,"linkedCount":14},{"id":"projects/ai-idea-submitter","type":"projects","slug":"ai-idea-submitter","factCount":7,"linkedCount":7},{"id":"projects/grantexec","type":"projects","slug":"grantexec","factCount":23,"linkedCount":20},{"id":"projects/grantgpt","type":"projects","slug":"grantgpt","factCount":17,"linkedCount":17},{"id":"projects/mission-control","type":"projects","slug":"mission-control","factCount":10,"linkedCount":10},{"id":"projects/ai-adoption-initiative","type":"projects","slug":"ai-adoption-initiative","factCount":47,"linkedCount":47},{"id":"projects/personal-site","type":"projects","slug":"personal-site","factCount":12,"linkedCount":12},{"id":"projects/himbot-face","type":"projects","slug":"himbot-face","factCount":6,"linkedCount":6},{"id":"projects/27-golf","type":"projects","slug":"27-golf","factCount":3,"linkedCount":3},{"id":"people/jeff-hokenson","type":"people","slug":"jeff-hokenson","factCount":2,"linkedCount":2},{"id":"people/roark","type":"people","slug":"roark","factCount":3,"linkedCount":2},{"id":"people/lenee-pezzano","type":"people","slug":"lenee-pezzano","factCount":1,"linkedCount":1},{"id":"people/himbot","type":"people","slug":"himbot","factCount":11,"linkedCount":8},{"id":"people/zoe","type":"people","slug":"zoe","factCount":0,"linkedCount":0},{"id":"people/christina","type":"people","slug":"christina","factCount":0,"linkedCount":0},{"id":"people/linda","type":"people","slug":"linda","factCount":1,"linkedCount":1},{"id":"people/grisha","type":"people","slug":"grisha","factCount":5,"linkedCount":5},{"id":"people/jen","type":"people","slug":"jen","factCount":1,"linkedCount":1},{"id":"people/ryan-stober","type":"people","slug":"ryan-stober","factCount":7,"linkedCount":5},{"id":"people/pranav","type":"people","slug":"pranav","factCount":2,"linkedCount":2},{"id":"people/justin-johnson","type":"people","slug":"justin-johnson","factCount":7,"linkedCount":5},{"id":"people/myk-konrad","type":"people","slug":"myk-konrad","factCount":1,"linkedCount":1},{"id":"people/melina","type":"people","slug":"melina","factCount":1,"linkedCount":1},{"id":"people/emily-fabiano","type":"people","slug":"emily-fabiano","factCount":2,"linkedCount":2},{"id":"people/hilary","type":"people","slug":"hilary","factCount":5,"linkedCount":2},{"id":"people/carolyn","type":"people","slug":"carolyn","factCount":1,"linkedCount":1},{"id":"people/karen-smaw","type":"people","slug":"karen-smaw","factCount":2,"linkedCount":2},{"id":"people/john-alexander","type":"people","slug":"john-alexander","factCount":2,"linkedCount":2},{"id":"people/samir","type":"people","slug":"samir","factCount":2,"linkedCount":2},{"id":"people/david-schwab","type":"people","slug":"david-schwab","factCount":2,"linkedCount":1},{"id":"people/melissa-mccabe","type":"people","slug":"melissa-mccabe","factCount":2,"linkedCount":2},{"id":"people/jamie-crittenberger","type":"people","slug":"jamie-crittenberger","factCount":4,"linkedCount":3},{"id":"people/calvin","type":"people","slug":"calvin","factCount":2,"linkedCount":2},{"id":"people/laura","type":"people","slug":"laura","factCount":3,"linkedCount":2},{"id":"people/ryan-vemulapalli","type":"people","slug":"ryan-vemulapalli","factCount":12,"linkedCount":11},{"id":"people/joe","type":"people","slug":"joe","factCount":5,"linkedCount":5},{"id":"people/kieran","type":"people","slug":"kieran","factCount":3,"linkedCount":2},{"id":"people/ryan-ven","type":"people","slug":"ryan-ven","factCount":0,"linkedCount":0},{"id":"people/mick","type":"people","slug":"mick","factCount":2,"linkedCount":2},{"id":"people/dad","type":"people","slug":"dad","factCount":4,"linkedCount":3},{"id":"people/morgan","type":"people","slug":"morgan","factCount":1,"linkedCount":1},{"id":"people/dave-harvey","type":"people","slug":"dave-harvey","factCount":3,"linkedCount":3},{"id":"people/gracia","type":"people","slug":"gracia","factCount":2,"linkedCount":2},{"id":"people/matthew-cooke","type":"people","slug":"matthew-cooke","factCount":4,"linkedCount":4},{"id":"people/brian","type":"people","slug":"brian","factCount":0,"linkedCount":0},{"id":"people/merani-mensingh","type":"people","slug":"merani-mensingh","factCount":3,"linkedCount":2},{"id":"people/andrew-stockwell","type":"people","slug":"andrew-stockwell","factCount":11,"linkedCount":11},{"id":"people/ryan","type":"people","slug":"ryan","factCount":22,"linkedCount":14},{"id":"people/nannie","type":"people","slug":"nannie","factCount":4,"linkedCount":3},{"id":"people/mailinh","type":"people","slug":"mailinh","factCount":3,"linkedCount":1},{"id":"people/tod-ewasko","type":"people","slug":"tod-ewasko","factCount":1,"linkedCount":1},{"id":"people/abigail","type":"people","slug":"abigail","factCount":3,"linkedCount":2},{"id":"people/jackson","type":"people","slug":"jackson","factCount":8,"linkedCount":7},{"id":"people/william-cron","type":"people","slug":"william-cron","factCount":1,"linkedCount":1},{"id":"companies/upgame","type":"companies","slug":"upgame","factCount":3,"linkedCount":2},{"id":"companies/euna","type":"companies","slug":"euna","factCount":15,"linkedCount":5},{"id":"companies/cmcb","type":"companies","slug":"cmcb","factCount":2,"linkedCount":0},{"id":"companies/sixfour3","type":"companies","slug":"sixfour3","factCount":1,"linkedCount":1},{"id":"companies/anthropic","type":"companies","slug":"anthropic","factCount":7,"linkedCount":5},{"id":"companies/grantexec","type":"companies","slug":"grantexec","factCount":7,"linkedCount":5}],"edges":[{"source":"projects/america-makes","target":"companies/grantexec"},{"source":"projects/accelerate-breakfast","target":"people/karen-smaw"},{"source":"projects/accelerate-breakfast","target":"people/ryan"},{"source":"projects/accelerate-breakfast","target":"people/dave-harvey"},{"source":"projects/accelerate-breakfast","target":"people/dad"},{"source":"projects/ralco-agent-swarm","target":"people/ryan"},{"source":"projects/ralco-agent-swarm","target":"companies/euna"},{"source":"projects/ralco-agent-swarm","target":"companies/grantexec"},{"source":"projects/ralco-agent-swarm","target":"people/himbot"},{"source":"projects/ralco-agent-swarm","target":"projects/mission-control"},{"source":"projects/roi-calculator","target":"companies/grantexec"},{"source":"projects/roi-calculator","target":"people/ryan"},{"source":"projects/match-capital","target":"people/ryan"},{"source":"projects/tax-dollars","target":"people/ryan"},{"source":"projects/tax-dollars","target":"companies/grantexec"},{"source":"projects/jobsohio","target":"companies/grantexec"},{"source":"projects/jobsohio","target":"people/emily-fabiano"},{"source":"projects/jobsohio","target":"people/lenee-pezzano"},{"source":"projects/jobsohio","target":"people/william-cron"},{"source":"projects/streamy","target":"people/ryan"},{"source":"projects/streamy","target":"people/himbot"},{"source":"projects/ai-idea-submitter","target":"companies/euna"},{"source":"projects/ai-idea-submitter","target":"people/andrew-stockwell"},{"source":"projects/ai-idea-submitter","target":"people/jen"},{"source":"projects/ai-idea-submitter","target":"people/linda"},{"source":"projects/ai-idea-submitter","target":"people/melissa-mccabe"},{"source":"projects/ai-idea-submitter","target":"people/myk-konrad"},{"source":"projects/ai-idea-submitter","target":"people/ryan"},{"source":"projects/ai-idea-submitter","target":"people/ryan-vemulapalli"},{"source":"projects/grantexec","target":"companies/euna"},{"source":"projects/grantexec","target":"people/mick"},{"source":"projects/grantexec","target":"people/andrew-stockwell"},{"source":"projects/grantexec","target":"people/christina"},{"source":"projects/grantexec","target":"people/justin-johnson"},{"source":"projects/grantexec","target":"people/ryan"},{"source":"projects/grantexec","target":"people/morgan"},{"source":"projects/grantexec","target":"companies/grantexec"},{"source":"projects/grantexec","target":"projects/grantgpt"},{"source":"projects/grantexec","target":"people/himbot"},{"source":"projects/grantexec","target":"companies/anthropic"},{"source":"projects/grantgpt","target":"companies/grantexec"},{"source":"projects/grantgpt","target":"people/ryan"},{"source":"projects/grantgpt","target":"people/himbot"},{"source":"projects/mission-control","target":"people/himbot"},{"source":"projects/mission-control","target":"projects/ralco-agent-swarm"},{"source":"projects/mission-control","target":"people/ryan"},{"source":"projects/mission-control","target":"projects/grantgpt"},{"source":"projects/ai-adoption-initiative","target":"companies/euna"},{"source":"projects/ai-adoption-initiative","target":"people/christina"},{"source":"projects/ai-adoption-initiative","target":"people/gracia"},{"source":"projects/ai-adoption-initiative","target":"people/hilary"},{"source":"projects/ai-adoption-initiative","target":"people/ryan"},{"source":"projects/ai-adoption-initiative","target":"people/tod-ewasko"},{"source":"projects/ai-adoption-initiative","target":"people/calvin"},{"source":"projects/ai-adoption-initiative","target":"people/joe"},{"source":"projects/ai-adoption-initiative","target":"companies/anthropic"},{"source":"projects/ai-adoption-initiative","target":"people/pranav"},{"source":"projects/ai-adoption-initiative","target":"projects/ai-idea-submitter"},{"source":"projects/ai-adoption-initiative","target":"people/abigail"},{"source":"projects/ai-adoption-initiative","target":"people/laura"},{"source":"projects/ai-adoption-initiative","target":"people/merani-mensingh"},{"source":"projects/ai-adoption-initiative","target":"projects/grantgpt"},{"source":"projects/ai-adoption-initiative","target":"people/grisha"},{"source":"projects/ai-adoption-initiative","target":"people/jackson"},{"source":"projects/ai-adoption-initiative","target":"companies/grantexec"},{"source":"projects/ai-adoption-initiative","target":"people/justin-johnson"},{"source":"projects/personal-site","target":"people/ryan"},{"source":"projects/personal-site","target":"projects/ralco-agent-swarm"},{"source":"projects/himbot-face","target":"people/himbot"},{"source":"projects/himbot-face","target":"people/ryan"},{"source":"projects/27-golf","target":"people/ryan"},{"source":"projects/27-golf","target":"people/jeff-hokenson"},{"source":"people/jeff-hokenson","target":"projects/27-golf"},{"source":"people/jeff-hokenson","target":"people/ryan"},{"source":"people/roark","target":"people/ryan"},{"source":"people/roark","target":"companies/grantexec"},{"source":"people/lenee-pezzano","target":"projects/jobsohio"},{"source":"people/himbot","target":"people/ryan"},{"source":"people/himbot","target":"companies/grantexec"},{"source":"people/himbot","target":"projects/grantgpt"},{"source":"people/linda","target":"companies/euna"},{"source":"people/linda","target":"people/ryan"},{"source":"people/grisha","target":"companies/euna"},{"source":"people/grisha","target":"people/jackson"},{"source":"people/grisha","target":"people/pranav"},{"source":"people/grisha","target":"people/ryan"},{"source":"people/jen","target":"companies/euna"},{"source":"people/jen","target":"people/ryan"},{"source":"people/ryan-stober","target":"companies/euna"},{"source":"people/ryan-stober","target":"people/ryan"},{"source":"people/pranav","target":"projects/ai-adoption-initiative"},{"source":"people/pranav","target":"companies/euna"},{"source":"people/pranav","target":"people/andrew-stockwell"},{"source":"people/justin-johnson","target":"companies/grantexec"},{"source":"people/justin-johnson","target":"companies/euna"},{"source":"people/justin-johnson","target":"people/ryan"},{"source":"people/justin-johnson","target":"people/zoe"},{"source":"people/myk-konrad","target":"companies/euna"},{"source":"people/melina","target":"people/mailinh"},{"source":"people/emily-fabiano","target":"projects/jobsohio"},{"source":"people/emily-fabiano","target":"companies/grantexec"},{"source":"people/hilary","target":"companies/euna"},{"source":"people/hilary","target":"projects/ai-adoption-initiative"},{"source":"people/carolyn","target":"companies/euna"},{"source":"people/karen-smaw","target":"people/ryan"},{"source":"people/karen-smaw","target":"projects/accelerate-breakfast"},{"source":"people/karen-smaw","target":"people/dad"},{"source":"people/john-alexander","target":"companies/euna"},{"source":"people/john-alexander","target":"companies/grantexec"},{"source":"people/john-alexander","target":"people/ryan"},{"source":"people/samir","target":"companies/upgame"},{"source":"people/samir","target":"people/jeff-hokenson"},{"source":"people/samir","target":"projects/27-golf"},{"source":"people/david-schwab","target":"projects/27-golf"},{"source":"people/melissa-mccabe","target":"companies/euna"},{"source":"people/melissa-mccabe","target":"people/ryan"},{"source":"people/jamie-crittenberger","target":"people/jeff-hokenson"},{"source":"people/calvin","target":"companies/anthropic"},{"source":"people/calvin","target":"companies/euna"},{"source":"people/laura","target":"companies/euna"},{"source":"people/laura","target":"companies/grantexec"},{"source":"people/ryan-vemulapalli","target":"companies/euna"},{"source":"people/ryan-vemulapalli","target":"people/andrew-stockwell"},{"source":"people/ryan-vemulapalli","target":"people/gracia"},{"source":"people/ryan-vemulapalli","target":"people/ryan"},{"source":"people/ryan-vemulapalli","target":"projects/ai-idea-submitter"},{"source":"people/ryan-vemulapalli","target":"companies/anthropic"},{"source":"people/joe","target":"companies/euna"},{"source":"people/joe","target":"people/ryan"},{"source":"people/joe","target":"companies/anthropic"},{"source":"people/joe","target":"people/ryan-vemulapalli"},{"source":"people/kieran","target":"companies/euna"},{"source":"people/kieran","target":"people/jackson"},{"source":"people/mick","target":"companies/euna"},{"source":"people/mick","target":"companies/grantexec"},{"source":"people/dad","target":"people/ryan"},{"source":"people/dad","target":"people/dave-harvey"},{"source":"people/dad","target":"people/karen-smaw"},{"source":"people/dad","target":"projects/accelerate-breakfast"},{"source":"people/morgan","target":"companies/euna"},{"source":"people/morgan","target":"people/justin-johnson"},{"source":"people/dave-harvey","target":"projects/accelerate-breakfast"},{"source":"people/dave-harvey","target":"people/dad"},{"source":"people/dave-harvey","target":"people/ryan"},{"source":"people/gracia","target":"companies/euna"},{"source":"people/gracia","target":"people/andrew-stockwell"},{"source":"people/gracia","target":"projects/ai-adoption-initiative"},{"source":"people/matthew-cooke","target":"companies/sixfour3"},{"source":"people/matthew-cooke","target":"people/ryan"},{"source":"people/merani-mensingh","target":"companies/euna"},{"source":"people/merani-mensingh","target":"companies/grantexec"},{"source":"people/andrew-stockwell","target":"companies/euna"},{"source":"people/andrew-stockwell","target":"people/gracia"},{"source":"people/andrew-stockwell","target":"people/jackson"},{"source":"people/andrew-stockwell","target":"people/pranav"},{"source":"people/andrew-stockwell","target":"people/ryan"},{"source":"people/andrew-stockwell","target":"people/ryan-vemulapalli"},{"source":"people/andrew-stockwell","target":"companies/anthropic"},{"source":"people/andrew-stockwell","target":"projects/ai-adoption-initiative"},{"source":"people/ryan","target":"people/himbot"},{"source":"people/ryan","target":"projects/himbot-face"},{"source":"people/ryan","target":"companies/euna"},{"source":"people/ryan","target":"people/andrew-stockwell"},{"source":"people/ryan","target":"projects/ai-adoption-initiative"},{"source":"people/ryan","target":"projects/streamy"},{"source":"people/ryan","target":"projects/personal-site"},{"source":"people/ryan","target":"people/mailinh"},{"source":"people/ryan","target":"companies/anthropic"},{"source":"people/ryan","target":"people/calvin"},{"source":"people/ryan","target":"projects/mission-control"},{"source":"people/ryan","target":"projects/grantgpt"},{"source":"people/nannie","target":"people/ryan"},{"source":"people/nannie","target":"companies/grantexec"},{"source":"people/mailinh","target":"people/ryan"},{"source":"people/tod-ewasko","target":"companies/anthropic"},{"source":"people/tod-ewasko","target":"companies/euna"},{"source":"people/tod-ewasko","target":"projects/ai-adoption-initiative"},{"source":"people/abigail","target":"companies/euna"},{"source":"people/abigail","target":"companies/grantexec"},{"source":"people/jackson","target":"companies/euna"},{"source":"people/jackson","target":"people/andrew-stockwell"},{"source":"people/jackson","target":"people/kieran"},{"source":"people/jackson","target":"people/pranav"},{"source":"people/jackson","target":"people/grisha"},{"source":"people/william-cron","target":"projects/jobsohio"},{"source":"companies/upgame","target":"projects/27-golf"},{"source":"companies/upgame","target":"people/samir"},{"source":"companies/euna","target":"companies/grantexec"},{"source":"companies/euna","target":"people/ryan"},{"source":"companies/euna","target":"people/joe"},{"source":"companies/euna","target":"people/andrew-stockwell"},{"source":"companies/euna","target":"people/hilary"},{"source":"companies/euna","target":"people/pranav"},{"source":"companies/sixfour3","target":"people/matthew-cooke"},{"source":"companies/sixfour3","target":"people/ryan"},{"source":"companies/anthropic","target":"companies/euna"},{"source":"companies/anthropic","target":"people/calvin"},{"source":"companies/anthropic","target":"people/ryan"},{"source":"companies/grantexec","target":"people/ryan"},{"source":"companies/grantexec","target":"companies/euna"},{"source":"companies/grantexec","target":"people/christina"},{"source":"companies/grantexec","target":"people/justin-johnson"},{"source":"companies/grantexec","target":"people/roark"}]};
+
+const colors = { people: '#6366f1', companies: '#f59e0b', projects: '#10b981' };
+const width = window.innerWidth;
+const height = window.innerHeight;
+
+// Deduplicate edges
+const edgeSet = new Set();
+const uniqueEdges = [];
+data.edges.forEach(e => {
+  const key = [e.source, e.target].sort().join('|');
+  if (!edgeSet.has(key)) {
+    edgeSet.add(key);
+    uniqueEdges.push(e);
+  }
+});
+
+// Stats
+const totalFacts = data.nodes.reduce((s, n) => s + n.factCount, 0);
+document.getElementById('nodeCount').textContent = data.nodes.length;
+document.getElementById('edgeCount').textContent = uniqueEdges.length;
+document.getElementById('factCount').textContent = totalFacts;
+
+// Connection count per node
+const connCount = {};
+data.nodes.forEach(n => connCount[n.id] = 0);
+uniqueEdges.forEach(e => {
+  connCount[e.source] = (connCount[e.source] || 0) + 1;
+  connCount[e.target] = (connCount[e.target] || 0) + 1;
+});
+
+const svg = d3.select('svg');
+const g = svg.append('g');
+
+// Zoom
+const zoom = d3.zoom()
+  .scaleExtent([0.2, 5])
+  .on('zoom', e => g.attr('transform', e.transform));
+svg.call(zoom);
+
+// Simulation
+const sim = d3.forceSimulation(data.nodes)
+  .force('link', d3.forceLink(uniqueEdges).id(d => d.id).distance(80).strength(0.3))
+  .force('charge', d3.forceManyBody().strength(-200))
+  .force('center', d3.forceCenter(width / 2, height / 2))
+  .force('collision', d3.forceCollide().radius(d => getRadius(d) + 4));
+
+function getRadius(d) {
+  return Math.max(6, Math.min(28, 4 + (connCount[d.id] || 0) * 1.5));
+}
+
+// Glow filter
+const defs = svg.append('defs');
+const filter = defs.append('filter').attr('id', 'glow');
+filter.append('feGaussianBlur').attr('stdDeviation', '3').attr('result', 'blur');
+const merge = filter.append('feMerge');
+merge.append('feMergeNode').attr('in', 'blur');
+merge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+// Links
+const link = g.append('g')
+  .selectAll('line')
+  .data(uniqueEdges)
+  .enter().append('line')
+  .attr('stroke', 'rgba(255,255,255,0.06)')
+  .attr('stroke-width', 0.8);
+
+// Nodes
+const node = g.append('g')
+  .selectAll('g')
+  .data(data.nodes)
+  .enter().append('g')
+  .call(d3.drag()
+    .on('start', dragStart)
+    .on('drag', dragging)
+    .on('end', dragEnd));
+
+node.append('circle')
+  .attr('r', d => getRadius(d))
+  .attr('fill', d => colors[d.type])
+  .attr('opacity', 0.85)
+  .attr('filter', 'url(#glow)')
+  .attr('stroke', d => colors[d.type])
+  .attr('stroke-width', 1.5)
+  .attr('stroke-opacity', 0.3);
+
+// Labels for high-connection nodes
+node.filter(d => (connCount[d.id] || 0) >= 3)
+  .append('text')
+  .text(d => d.slug.replace(/-/g, ' '))
+  .attr('dy', d => getRadius(d) + 14)
+  .attr('text-anchor', 'middle')
+  .attr('fill', 'rgba(255,255,255,0.5)')
+  .attr('font-size', '10px')
+  .attr('font-weight', '500')
+  .style('pointer-events', 'none');
+
+// Tooltip
+const tooltip = document.getElementById('tooltip');
+const ttName = document.getElementById('ttName');
+const ttBadge = document.getElementById('ttBadge');
+const ttStats = document.getElementById('ttStats');
+
+node.on('mouseover', function(event, d) {
+  const conns = connCount[d.id] || 0;
+  ttName.textContent = d.slug.replace(/-/g, ' ');
+  ttBadge.textContent = d.type.slice(0, -1);
+  ttBadge.style.background = colors[d.type] + '33';
+  ttBadge.style.color = colors[d.type];
+  ttStats.innerHTML = `${d.factCount} facts · ${conns} connections · ${d.linkedCount} linked`;
+  tooltip.classList.add('visible');
+
+  // Highlight connections
+  link.attr('stroke', l =>
+    (l.source.id === d.id || l.target.id === d.id) ? colors[d.type] + '80' : 'rgba(255,255,255,0.03)'
+  ).attr('stroke-width', l =>
+    (l.source.id === d.id || l.target.id === d.id) ? 2 : 0.5
+  );
+
+  const connected = new Set();
+  uniqueEdges.forEach(e => {
+    const src = typeof e.source === 'string' ? e.source : e.source.id;
+    const tgt = typeof e.target === 'string' ? e.target : e.target.id;
+    if (src === d.id) connected.add(tgt);
+    if (tgt === d.id) connected.add(src);
+  });
+
+  node.select('circle').attr('opacity', n =>
+    n.id === d.id || connected.has(n.id) ? 1 : 0.15
+  );
+  node.select('text').attr('opacity', n =>
+    n.id === d.id || connected.has(n.id) ? 1 : 0.1
+  );
+})
+.on('mousemove', function(event) {
+  tooltip.style.left = (event.clientX + 16) + 'px';
+  tooltip.style.top = (event.clientY - 10) + 'px';
+})
+.on('mouseout', function() {
+  tooltip.classList.remove('visible');
+  link.attr('stroke', 'rgba(255,255,255,0.06)').attr('stroke-width', 0.8);
+  node.select('circle').attr('opacity', 0.85);
+  node.select('text').attr('opacity', 1);
+});
+
+// Search
+document.getElementById('searchInput').addEventListener('input', function(e) {
+  const q = e.target.value.toLowerCase();
+  if (!q) {
+    node.select('circle').attr('opacity', 0.85);
+    node.select('text').attr('opacity', 1);
+    link.attr('stroke', 'rgba(255,255,255,0.06)');
+    return;
+  }
+  node.select('circle').attr('opacity', d =>
+    d.slug.includes(q) || d.type.includes(q) ? 1 : 0.1
+  );
+  node.select('text').attr('opacity', d =>
+    d.slug.includes(q) || d.type.includes(q) ? 1 : 0.05
+  );
+});
+
+sim.on('tick', () => {
+  link
+    .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+  node.attr('transform', d => `translate(${d.x},${d.y})`);
+});
+
+function dragStart(event, d) {
+  if (!event.active) sim.alphaTarget(0.3).restart();
+  d.fx = d.x; d.fy = d.y;
+}
+function dragging(event, d) { d.fx = event.x; d.fy = event.y; }
+function dragEnd(event, d) {
+  if (!event.active) sim.alphaTarget(0);
+  d.fx = null; d.fy = null;
+}
+
+// Initial zoom to fit
+setTimeout(() => {
+  svg.transition().duration(1000).call(
+    zoom.transform,
+    d3.zoomIdentity.translate(width/2, height/2).scale(0.8).translate(-width/2, -height/2)
+  );
+}, 500);
+</script>
+</body>
+</html>
